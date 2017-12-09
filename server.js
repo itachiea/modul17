@@ -1,37 +1,59 @@
 var express = require('express');
+var passport = require('passport');
+var GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
+var config = require('./config');
 var app = express();
+var googleProfile = {};
+
 
 app.set('view engine', 'pug');
-app.set('views','./views');
-app.use('/store',function(req, res, next) {
-    console.log('Pośrednik między żądaniem a odpowiedzią');
-    next();
+app.set('views', './views');
+app.use(passport.initialize());
+app.use(passport.session());
+
+
+passport.serializeUser(function(user, done) {
+    done(null, user);
+});
+passport.deserializeUser(function(obj, done) {
+    done(null, obj);
 });
 
-//app.use(express.static('assets'));
+passport.use(new GoogleStrategy({
+    clientID: config.GOOGLE_CLIENT_ID,
+    clientSecret: config.GOOGLE_CLIENT_SECRET,
+    callbackURL: config.CALLBACK_URL
+    },
+    function(accessToken, refreshToken, profile, cb) {
+        googleProfile = {
+            id: profile.id,
+            displayName: profile.displayName
+        };
 
-app.get('/', function(req, res){
-    res.render('main-template');
+        cb(null, profile);
+    }
+));
+
+app.get('/', function(req, res) {
+    res.render('index', {user: req.user});
 });
 
-app.get('/auth/google', function(req, res){
-    res.render('auth-google');
+app.get('/logged', function(req, res) {
+    res.render('logged', {user: googleProfile});
 });
 
-app.get('/auth-google-pass', function(req, res){
-    res.render('auth-google-pass');
-});
-
-app.get('/store', function(req, res) {
-    res.send('To jest sklep');
-});
-
-/*app.get('/first-template', function(req, res){
-    res.render('first-template');
-});*/
+//Passport routes
+app.get('/auth/google', 
+        passport.authenticate('google', {
+            scope: ['profile', 'email']
+        }));
+app.get('/auth/google/callback',
+    passport.authenticate('google', {
+        successRedirect: '/logged',
+        failureRedirect: '/'
+    }));
 
 app.listen(3000);
 app.use(function(req, res, next){
     res.status(404).send('Wybacz, nie mogliśmy odnaleźć tego, czego żądasz!');
 });
-
